@@ -36,6 +36,31 @@ import './style.css';
   console.log('----- FOUND 5 -----');
 })();
 
+// https://stackoverflow.com/a/9462382
+function nFormatter(num, digits = 3) {
+  const lookup = [
+    // { value: 1, symbol: "" },
+    // { value: 1e3, symbol: "k" },
+    // { value: 1e6, symbol: "M" },
+    // { value: 1e9, symbol: "G" },
+    // { value: 1e12, symbol: "T" },
+    // { value: 1e15, symbol: "P" },
+    // { value: 1e18, symbol: "E" }
+    { value: 1, symbol: '' },
+    { value: 1e3, symbol: 'тыщ' },
+    { value: 1e6, symbol: 'мегатыщ' },
+    { value: 1e9, symbol: 'мильард' },
+    { value: 1e12, symbol: 'трилён' },
+    { value: 1e15, symbol: 'квадралион' },
+    { value: 1e18, symbol: 'дохулион' },
+  ];
+  const regexp = /\.0+$|(?<=\.[0-9]*[1-9])0+$/;
+  const item = lookup.findLast(item => num >= item.value);
+  return item
+    ? (num / item.value).toFixed(digits).replace(regexp, '').concat(item.symbol)
+    : '0';
+}
+
 const messagesTextarea = document.querySelector('textarea#messages');
 const buttonsList = document.querySelector('ul#buttons');
 const status = document.querySelector('#status');
@@ -91,9 +116,9 @@ const HELP_MESSAGE = `Вы петрович.
 
 Есть шанс что у вас умрут несколько работников после их отправки на работу.`;
 
-function log(message) {
+function log(message, addDivider = true) {
   messagesTextarea.value += `${message}
---------------------
+${addDivider ? '--------------------' : ''}
 `;
   messagesTextarea.scrollTop = messagesTextarea.scrollHeight;
 }
@@ -102,32 +127,9 @@ let balance = JSON.parse(localStorage.getItem('balance') || '0');
 let workers = JSON.parse(localStorage.getItem('workers') || '0');
 // let balance = 0
 // let workers = 0
-let buttonsBlocked = false;
-
-// https://stackoverflow.com/a/9462382
-function nFormatter(num, digits = 3) {
-  const lookup = [
-    // { value: 1, symbol: "" },
-    // { value: 1e3, symbol: "k" },
-    // { value: 1e6, symbol: "M" },
-    // { value: 1e9, symbol: "G" },
-    // { value: 1e12, symbol: "T" },
-    // { value: 1e15, symbol: "P" },
-    // { value: 1e18, symbol: "E" }
-    { value: 1, symbol: '' },
-    { value: 1e3, symbol: 'тыщ' },
-    { value: 1e6, symbol: 'мегатыщ' },
-    { value: 1e9, symbol: 'мильард' },
-    { value: 1e12, symbol: 'трилён' },
-    { value: 1e15, symbol: 'квадралион' },
-    { value: 1e18, symbol: 'дохулион' },
-  ];
-  const regexp = /\.0+$|(?<=\.[0-9]*[1-9])0+$/;
-  const item = lookup.findLast(item => num >= item.value);
-  return item
-    ? (num / item.value).toFixed(digits).replace(regexp, '').concat(item.symbol)
-    : '0';
-}
+let buttonsBlocked = JSON.parse(
+  localStorage.getItem('buttonsBlocked') || 'false',
+);
 
 function updateStatus() {
   status.innerText = `Баланс - ${nFormatter(
@@ -147,8 +149,9 @@ function updateWorkers(newValue) {
   localStorage.setItem('workers', JSON.stringify(workers));
 }
 
-function blockButtons() {
-  buttonsBlocked = true;
+function updateBlockButtons(newValue) {
+  buttonsBlocked = newValue;
+  localStorage.setItem('buttonsBlocked', JSON.stringify(buttonsBlocked));
 }
 
 updateStatus();
@@ -218,6 +221,7 @@ const buttonsData = [
     action: () => {
       updateBalance(0);
       updateWorkers(0);
+      updateBlockButtons(false);
       window.location.reload();
     },
   },
@@ -239,21 +243,23 @@ buttonsData.forEach(buttonData => {
         let forDead = Math.floor(Math.random() * deadMax);
         if (forDead > workers) forDead = workers;
         if (forDead > 0) {
-          if (deadMax < 50) {
+          let deadMethod = Math.floor(Math.random() * 5);
+          // let deadMethod = 2;
+          if (deadMethod === 0) {
             log(
               `${nFormatter(
                 forDead,
               )} ваших работников умерли на работе от инсульта в мучениях (зачем?)`,
             );
             updateWorkers(workers - forDead);
-          } else if (deadMax < 200) {
+          } else if (deadMethod === 1) {
             log(
               `У вас сдала психика и вы расчленили ${nFormatter(
                 forDead,
               )} своих работников. Ну и правильно`,
             );
             updateWorkers(workers - forDead);
-          } else if (deadMax < 32000) {
+          } else if (deadMethod === 2) {
             const balanceStolenPercents = Math.floor(Math.random() * 100);
             const balanceForStole = Math.floor(
               (balance / 100) * balanceStolenPercents,
@@ -262,21 +268,23 @@ buttonsData.forEach(buttonData => {
               `Пришла толпа милых котиков. Они загрызли и съели ${nFormatter(
                 forDead,
               )} ваших работников.${
-                balance > 0
-                  ? ` А ещё спиздили у вас квартиру где деньги лежат (там было ${balanceStolenPercents}% деняк - итого ${balanceForStole})`
+                balance > 0 && balanceForStole > 0
+                  ? ` А ещё спиздили у вас квартиру где деньги лежат (там было ${balanceStolenPercents}% от ${nFormatter(
+                      balance,
+                    )} деняк - итого ${nFormatter(balanceForStole)} 💵)`
                   : ''
               }`,
             );
             if (balance > 0) updateBalance(balance - balanceForStole);
             updateWorkers(workers - forDead);
-          } else if (deadMax < 100000) {
+          } else if (deadMethod === 3) {
             log(
               `От внезапной хвори у вас умерло ${nFormatter(
                 forDead,
               )} работников.`,
             );
             updateWorkers(workers - forDead);
-          } else if (true) {
+          } else if (deadMethod === 4) {
             log(
               `Случился неведомый пиздос. У вас умерло ${nFormatter(
                 forDead,
@@ -287,14 +295,14 @@ buttonsData.forEach(buttonData => {
         }
       }
 
-      if (Math.random() < 0.001) {
+      if (Math.random() < 0.0008) {
         log(
           'У вас взорвался завод - все сбережения сгорели и все работники умерли в мучениях. Нажмите кнопку "Сброс игры" чтобы сброситься с крыши.',
         );
-        blockButtons();
+        updateBlockButtons(true);
       }
 
-      if (Math.random() < 0.001) {
+      if (Math.random() < 0.0008) {
         if (Math.random() < 0.5) {
           log(
             `Вы заебались и умерли, пиздец, горе то какое. Все досталось вашим ебучим детям от вашей ебучей бабушки которых всех зовут Петровичами. Нажмите кнопку "Сброс игры" чтобы управлять их сознанием.`,
@@ -305,32 +313,32 @@ buttonsData.forEach(buttonData => {
           );
         }
 
-        blockButtons();
+        updateBlockButtons(true);
       }
 
-      if (Math.random() < 0.001) {
+      if (Math.random() < 0.0008) {
         log(
           `ПРОИЗОШЕЛ АКЫН БАЛЯ ебучий. вашу планета разъебали инопричленцы. шлёпните па кнопе "Сброс игры" чтобы откатиться до world_backup_${new Date(
             new Date().getTime() + 5000,
           )}`,
         );
 
-        blockButtons();
+        updateBlockButtons(true);
       }
 
-      if (workers > 0 && Math.random() < 0.001) {
+      if (workers > 0 && Math.random() < 0.0008) {
         log(
           `${nFormatter(
             workers,
           )} работников заебались и ебнули вас нахуй. Заново давай.`,
         );
 
-        blockButtons();
+        updateBlockButtons(true);
       }
     }
     if (balance >= MAX_BALANCE) {
       log('Поздравляю! Вы прошли игру.');
-      blockButtons();
+      updateBlockButtons(true);
     }
   });
 
@@ -341,3 +349,5 @@ buttonsData.forEach(buttonData => {
 });
 
 log(START_MESSAGE);
+if (buttonsBlocked)
+  log('Игра окончена. Нажмите "Сброс игры" чтобы начать заново');
